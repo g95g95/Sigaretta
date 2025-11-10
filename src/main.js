@@ -1,4 +1,4 @@
-import { html, css, LitElement, nothing } from 'https://cdn.jsdelivr.net/npm/lit@3.1.0/index.js';
+import { html, css, LitElement, nothing } from 'https://cdn.jsdelivr.net/npm/lit@3.1.0/+esm';
 import { gunService } from './gun-service.js';
 import { PROMPTS, TOTAL_TURNS } from './prompts.js';
 import { slugify, randomId, countWords, clampWords, formatDateDistance } from './utils.js';
