@@ -32,6 +32,7 @@ class SigarettaApp extends LitElement {
     isHost: { state: true },
     joinName: { state: true },
     joinError: { state: true },
+    roomError: { state: true },
     answers: { state: true },
     turnStatus: { state: true },
     assignments: { state: true },
@@ -319,6 +320,7 @@ class SigarettaApp extends LitElement {
     this.isHost = false;
     this.joinName = this.playerName;
     this.joinError = '';
+    this.roomError = '';
     this.answers = new Map();
     this.turnStatus = new Map();
     this.assignments = new Map();
@@ -383,6 +385,7 @@ class SigarettaApp extends LitElement {
   openRoom(roomId, pushHistory = true) {
     this.screen = 'room';
     this.roomId = roomId;
+    this.roomError = '';
     if (pushHistory) {
       const url = new URL(window.location.href);
       url.searchParams.set('room', roomId);
@@ -393,6 +396,17 @@ class SigarettaApp extends LitElement {
       window.history.replaceState({}, '', url);
     }
     this.subscribeToRoom(roomId);
+
+    const currentRoom = roomId;
+    gunService.fetchRoom(roomId).then((data) => {
+      if (this.roomId !== currentRoom) return;
+      if (!data) {
+        this.roomData = null;
+        this.roomError = 'Stanza non trovata. Controlla il link oppure attendi che l’host condivida nuovamente la stanza.';
+        return;
+      }
+      this.applyRoomData(data);
+    });
   }
 
   handlePopState() {
@@ -417,22 +431,12 @@ class SigarettaApp extends LitElement {
       onRoom: (data) => {
         if (!data) {
           this.roomData = null;
+          this.roomError =
+            this.roomError ||
+            'Stanza non disponibile o non più attiva. Chiedi a chi ha creato la partita di verificare il link.';
           return;
         }
-        let prompts = PROMPTS;
-        if (data.prompts) {
-          try {
-            prompts = Array.isArray(data.prompts) ? data.prompts : JSON.parse(data.prompts);
-          } catch (error) {
-            console.warn('Impossibile leggere le domande dalla stanza, uso default.', error);
-            prompts = PROMPTS;
-          }
-        }
-        const onlyHostStarts =
-          typeof data.onlyHostStarts === 'boolean' ? data.onlyHostStarts : true;
-        this.roomData = { ...data, prompts, onlyHostStarts };
-        this.prompts = prompts;
-        this.isHost = data.hostId && data.hostId === this.playerId;
+        this.applyRoomData(data);
       },
       onPlayers: (players) => {
         this.players = players;
@@ -466,6 +470,25 @@ class SigarettaApp extends LitElement {
         this.assignments = assignments;
       },
     });
+  }
+
+  applyRoomData(rawData) {
+    if (!rawData) return;
+    let prompts = PROMPTS;
+    if (rawData.prompts) {
+      try {
+        prompts = Array.isArray(rawData.prompts) ? rawData.prompts : JSON.parse(rawData.prompts);
+      } catch (error) {
+        console.warn('Impossibile leggere le domande dalla stanza, uso default.', error);
+        prompts = PROMPTS;
+      }
+    }
+    const onlyHostStarts =
+      typeof rawData.onlyHostStarts === 'boolean' ? rawData.onlyHostStarts : true;
+    this.roomData = { ...rawData, prompts, onlyHostStarts };
+    this.prompts = prompts;
+    this.isHost = rawData.hostId && rawData.hostId === this.playerId;
+    this.roomError = '';
   }
 
   handleConfigureInput(field, value) {
@@ -542,6 +565,7 @@ class SigarettaApp extends LitElement {
     this.roomId = null;
     this.roomData = null;
     this.players = [];
+    this.roomError = '';
     this.screen = 'group-selection';
     const url = new URL(window.location.href);
     url.searchParams.delete('room');
@@ -854,6 +878,22 @@ class SigarettaApp extends LitElement {
   }
 
   renderRoom() {
+    if (this.roomError && !this.roomData) {
+      return html`
+        <div class="container">
+          <div class="card">
+            <h1>Stanza non disponibile</h1>
+            <p class="error">${this.roomError}</p>
+            <div class="actions">
+              <button class="secondary" @click=${() => this.navigate('group-selection')}>
+                Torna all’elenco
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     if (!this.roomData) {
       return html`
         <div class="container">
