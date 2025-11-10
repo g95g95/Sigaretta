@@ -362,6 +362,22 @@ class SigarettaApp extends LitElement {
     if (changed.has('roomData') || changed.has('players') || changed.has('turnStatus')) {
       this.evaluateTurnProgress();
     }
+    if (changed.has('roomData') || changed.has('players')) {
+      this.maybeAutoStartGame();
+    }
+    if (changed.has('roomData')) {
+      const previous = changed.get('roomData');
+      const currentTurn = this.roomData?.currentTurn ?? -1;
+      const prevTurn = previous?.currentTurn ?? -1;
+      const currentStatus = this.roomData?.status;
+      const prevStatus = previous?.status;
+      if (currentTurn !== prevTurn) {
+        this.waitingTurn = false;
+        this.responseText = '';
+      } else if (currentStatus !== prevStatus && currentStatus === 'playing') {
+        this.waitingTurn = false;
+      }
+    }
     if (changed.has('roomId')) {
       this.revealState = [];
       this.responseText = '';
@@ -578,6 +594,17 @@ class SigarettaApp extends LitElement {
       return this.isHost;
     }
     return this.players.some((p) => p.id === this.playerId);
+  }
+
+  maybeAutoStartGame() {
+    if (!this.roomData || !this.roomId) return;
+    if (this.roomData.status !== 'lobby') return;
+    if (this.roomData.onlyHostStarts) return;
+    const playerCount = this.players?.length ?? 0;
+    if (playerCount < 2) return;
+    const maxPlayers = Number(this.roomData.maxPlayers) || 0;
+    if (maxPlayers > 0 && playerCount < maxPlayers) return;
+    this.startGame();
   }
 
   startGame() {
