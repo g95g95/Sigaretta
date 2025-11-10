@@ -200,6 +200,18 @@ class GunRoomService {
     };
   }
 
+  fetchRoom(roomId) {
+    return new Promise((resolve) => {
+      this.roomsNode.get(roomId).once((data) => {
+        if (!data) {
+          resolve(null);
+          return;
+        }
+        resolve(cleanNode(data));
+      });
+    });
+  }
+
   ensurePlayer(roomId, playerId, payload) {
     const roomNode = this.roomsNode.get(roomId);
     return new Promise((resolve) => {
