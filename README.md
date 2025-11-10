@@ -9,11 +9,14 @@ peer-to-peer di [Gun.js](https://gun.eco) per sincronizzare in tempo reale le ri
 - Configurazione di nuove partite con scelta del nome del gruppo, del numero massimo di
   partecipanti (fino a 8) e del limite di parole per risposta.
 - Generazione automatica di un link condivisibile con cui i giocatori possono accedere alla stanza.
-- Lobby con elenco dei partecipanti e gestione automatica dell’host.
+- Lobby con elenco dei partecipanti e gestione automatica dell’host, con opzione “Solo io posso
+  avviare la partita” per trattenere l’avvio al/la creatore/trice della stanza.
 - Sequenza completa degli otto turni del gioco della sigaretta, con passaggio virtuale dei fogli e
   blocco del turno finché non hanno risposto tuttə.
 - Rivelazione finale con interfaccia “da grattare”: ogni riga della storia si svela con un click.
 - Design responsive, elegante e moderno, pronto per essere pubblicato su GitHub Pages.
+- Monitoraggio delle connessioni ai relay Gun con messaggi di stato più chiari in caso di problemi
+  di rete.
 
 ## Avvio in locale
 

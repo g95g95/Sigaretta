@@ -38,6 +38,7 @@ class SigarettaApp extends LitElement {
     responseText: { state: true },
     waitingTurn: { state: true },
     revealState: { state: true },
+    connectionPeers: { state: true },
   };
 
   static styles = css`
@@ -145,6 +146,23 @@ class SigarettaApp extends LitElement {
     textarea {
       resize: vertical;
       min-height: 140px;
+    }
+
+    .checkbox {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      font-weight: 600;
+    }
+
+    .checkbox input[type='checkbox'] {
+      width: auto;
+      margin: 0;
+      accent-color: var(--accent);
+    }
+
+    .checkbox span {
+      font-size: 0.95rem;
     }
 
     .tag {
@@ -288,7 +306,7 @@ class SigarettaApp extends LitElement {
     this.screen = 'landing';
     this.rooms = [];
     this.joinGroupName = '';
-    this.configureData = { groupName: '', maxPlayers: 6, maxWords: 12 };
+    this.configureData = { groupName: '', maxPlayers: 6, maxWords: 12, onlyHostStarts: true };
     this.configureError = '';
     this.configureSuccess = '';
     this.roomId = null;
@@ -307,12 +325,18 @@ class SigarettaApp extends LitElement {
     this.responseText = '';
     this.waitingTurn = false;
     this.revealState = [];
+    this.connectionPeers = [];
     this.unsubscribeRoom = null;
     this.handlePopState = this.handlePopState.bind(this);
     window.addEventListener('popstate', this.handlePopState);
 
     this.unsubscribeIndex = gunService.watchRoomsIndex((rooms) => {
       this.rooms = rooms;
+      this.requestUpdate();
+    });
+
+    this.unsubscribeConnection = gunService.onConnection(({ peers }) => {
+      this.connectionPeers = peers;
       this.requestUpdate();
     });
 
@@ -327,6 +351,7 @@ class SigarettaApp extends LitElement {
     super.disconnectedCallback();
     this.unsubscribeIndex?.();
     this.unsubscribeRoom?.();
+    this.unsubscribeConnection?.();
     window.removeEventListener('popstate', this.handlePopState);
   }
 
@@ -403,17 +428,22 @@ class SigarettaApp extends LitElement {
             prompts = PROMPTS;
           }
         }
-        this.roomData = { ...data, prompts };
+        const onlyHostStarts =
+          typeof data.onlyHostStarts === 'boolean' ? data.onlyHostStarts : true;
+        this.roomData = { ...data, prompts, onlyHostStarts };
         this.prompts = prompts;
-        if (data.hostId && data.hostId === this.playerId) {
-          this.isHost = true;
-        }
+        this.isHost = data.hostId && data.hostId === this.playerId;
       },
       onPlayers: (players) => {
         this.players = players;
         const hostId = this.roomData?.hostId;
+        const onlyHostStarts = this.roomData?.onlyHostStarts;
+        const status = this.roomData?.status;
         const hostStillPresent = hostId ? players.some((p) => p.id === hostId) : false;
-        if (!hostId || !hostStillPresent) {
+        const shouldReassign =
+          !hostId ||
+          (!hostStillPresent && (!onlyHostStarts || (status && status !== 'lobby')));
+        if (shouldReassign) {
           if (players.length) {
             const newHost = players[0].id;
             gunService.updateRoom(this.roomId, { hostId: newHost });
@@ -447,7 +477,10 @@ class SigarettaApp extends LitElement {
     this.configureError = '';
     this.configureSuccess = '';
     try {
-      const result = await gunService.createRoom(this.configureData);
+      const result = await gunService.createRoom({
+        ...this.configureData,
+        hostId: this.playerId,
+      });
       const url = new URL(window.location.href);
       url.searchParams.set('room', result.roomId);
       this.configureSuccess = url.toString();
@@ -515,8 +548,17 @@ class SigarettaApp extends LitElement {
     window.history.replaceState({}, '', url);
   }
 
+  canCurrentPlayerStart() {
+    if (!this.roomData) return false;
+    if (this.roomData.onlyHostStarts) {
+      return this.isHost;
+    }
+    return this.players.some((p) => p.id === this.playerId);
+  }
+
   startGame() {
-    if (!this.isHost || !this.roomId) return;
+    if (!this.roomId) return;
+    if (!this.canCurrentPlayerStart()) return;
     gunService.clearCollection(this.roomId, 'answers');
     gunService.clearCollection(this.roomId, 'turnStatus');
     gunService.clearCollection(this.roomId, 'finalAssignments');
@@ -767,6 +809,17 @@ class SigarettaApp extends LitElement {
                 @input=${(e) => this.handleConfigureInput('maxWords', e.target.value)}
               />
             </label>
+            <label class="checkbox">
+              <input
+                type="checkbox"
+                .checked=${this.configureData.onlyHostStarts}
+                @change=${(e) => this.handleConfigureInput('onlyHostStarts', e.target.checked)}
+              />
+              <span>Solo io posso avviare la partita</span>
+            </label>
+            <p class="muted" style="margin-top: -0.5rem; grid-column: 1 / -1;">
+              Se deselezionato, chiunque entra nella stanza potrà iniziare la partita quando prontə.
+            </p>
             <div class="actions">
               <button type="submit">Genera link</button>
               <button type="button" class="secondary" @click=${() => this.navigate('group-selection')}>
@@ -806,7 +859,11 @@ class SigarettaApp extends LitElement {
         <div class="container">
           <div class="card">
             <h1>Caricamento stanza…</h1>
-            <p class="muted">Verifica il link o attendi qualche secondo.</p>
+            <p class="muted">
+              ${this.connectionPeers.length === 0
+                ? 'Connessione ai server in corso. Assicurati di essere online e riprova tra qualche secondo.'
+                : 'Verifica il link o attendi qualche secondo.'}
+            </p>
             <div class="actions">
               <button class="secondary" @click=${() => this.navigate('group-selection')}>
                 Torna all’elenco
@@ -828,6 +885,7 @@ class SigarettaApp extends LitElement {
             <div class="muted">
               Stato: <strong>${this.renderStatusLabel(this.roomData.status)}</strong>
               · Partecipanti: ${this.players.length}/${this.roomData.maxPlayers}
+              · Connessioni attive: ${this.connectionPeers.length}
             </div>
           </div>
           <div class="actions">
@@ -894,6 +952,14 @@ class SigarettaApp extends LitElement {
   }
 
   renderLobby() {
+    const canStart = this.canCurrentPlayerStart();
+    const hostInRoom = this.players.some((p) => p.id === this.roomData?.hostId);
+    const waitingMessage = this.roomData.onlyHostStarts
+      ? hostInRoom
+        ? 'Attendi che l’host avvii la partita.'
+        : 'In attesa che la persona che ha creato la stanza entri nella lobby per iniziare.'
+      : 'Chiunque può avviare la partita quando tuttə sono prontə.';
+
     return html`
       <div class="card">
         <h2>Lobby</h2>
@@ -920,7 +986,7 @@ class SigarettaApp extends LitElement {
                 `
               )}
         </div>
-        ${this.isHost
+        ${canStart
           ? html`
               <div class="actions">
                 <button
@@ -932,9 +998,9 @@ class SigarettaApp extends LitElement {
               </div>
               ${this.players.length < 2
                 ? html`<p class="muted">Servono almeno due giocatori per iniziare.</p>`
-                : nothing}
+                : html`<p class="muted">Puoi iniziare quando il gruppo è prontə.</p>`}
             `
-          : html`<p class="muted">Attendi che l’host avvii la partita.</p>`}
+          : html`<p class="muted">${waitingMessage}</p>`}
       </div>
     `;
   }
@@ -1053,7 +1119,7 @@ class SigarettaApp extends LitElement {
               `
             )}
           </div>
-          ${this.isHost
+          ${this.canCurrentPlayerStart()
             ? html`
                 <div class="actions" style="margin-top: 1.5rem;">
                   <button @click=${() => this.startGame()}>Nuova partita con lo stesso gruppo</button>

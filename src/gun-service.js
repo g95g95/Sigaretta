@@ -1,7 +1,14 @@
 import { PROMPTS } from './prompts.js';
 import { slugify } from './utils.js';
 
-const GUN_PEERS = ['https://gun-manhattan.herokuapp.com/gun'];
+const GUN_PEERS = [
+  'https://relay.peer.ooo/gun',
+  'https://gun-manhattan-1.herokuapp.com/gun',
+  'https://gunjs.herokuapp.com/gun',
+  'https://gun-manhattan.herokuapp.com/gun',
+  'https://gun-eu.herokuapp.com/gun',
+  'https://gun-asia.herokuapp.com/gun',
+];
 
 function safeParse(json) {
   if (!json) return undefined;
@@ -25,9 +32,49 @@ class GunRoomService {
     if (!window.Gun) {
       throw new Error('Gun non disponibile');
     }
-    this.gun = window.Gun({ peers: GUN_PEERS });
+    const shuffledPeers = [...GUN_PEERS].sort(() => Math.random() - 0.5);
+    this.gun = window.Gun({ peers: shuffledPeers });
     this.roomsNode = this.gun.get('sigaretta_rooms');
     this.indexNode = this.gun.get('sigaretta_rooms_index');
+    this.connectedPeers = new Set();
+    this.connectionCallbacks = new Set();
+
+    this.gun.on('hi', (peer) => {
+      const url = peer?.url || peer;
+      if (url) {
+        this.connectedPeers.add(url);
+        this.emitConnection();
+      }
+    });
+
+    this.gun.on('bye', (peer) => {
+      const url = peer?.url || peer;
+      if (url) {
+        this.connectedPeers.delete(url);
+        this.emitConnection();
+      }
+    });
+  }
+
+  emitConnection() {
+    const snapshot = {
+      peers: Array.from(this.connectedPeers),
+    };
+    this.connectionCallbacks.forEach((cb) => {
+      try {
+        cb(snapshot);
+      } catch (error) {
+        console.error('Errore nel callback di connessione', error);
+      }
+    });
+  }
+
+  onConnection(callback) {
+    this.connectionCallbacks.add(callback);
+    callback({ peers: Array.from(this.connectedPeers) });
+    return () => {
+      this.connectionCallbacks.delete(callback);
+    };
   }
 
   watchRoomsIndex(callback) {
@@ -43,7 +90,7 @@ class GunRoomService {
     return () => handler.off();
   }
 
-  createRoom({ groupName, maxPlayers, maxWords }) {
+  createRoom({ groupName, maxPlayers, maxWords, onlyHostStarts, hostId }) {
     return new Promise((resolve, reject) => {
       const slug = slugify(groupName);
       if (!slug) {
@@ -67,6 +114,8 @@ class GunRoomService {
           currentTurn: 0,
           createdAt: now,
           prompts: JSON.stringify(PROMPTS),
+          hostId: hostId || null,
+          onlyHostStarts: typeof onlyHostStarts === 'boolean' ? onlyHostStarts : true,
         };
         this.roomsNode.get(roomId).put(roomData, (ack) => {
           if (ack.err) {
