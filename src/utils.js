@@ -20,16 +20,23 @@ export function randomId(length = 8) {
 }
 
 export function clampWords(input, maxWords) {
-  const cleaned = input
+  if (!maxWords || maxWords <= 0) {
+    return input;
+  }
+
+  const normalised = input
     .replace(/\s+/g, ' ')
     .trim();
-  if (!maxWords || maxWords <= 0) {
-    return cleaned;
+
+  if (!normalised) {
+    return '';
   }
-  const words = cleaned.split(' ');
+
+  const words = normalised.split(' ');
   if (words.length <= maxWords) {
-    return cleaned;
+    return input;
   }
+
   return words.slice(0, maxWords).join(' ');
 }
 
