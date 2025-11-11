@@ -1,6 +1,6 @@
 import { html, css, LitElement, nothing } from 'https://cdn.jsdelivr.net/npm/lit@3.1.0/+esm';
 import { gunService } from './gun-service.js';
-import { PROMPTS, TOTAL_TURNS } from './prompts.js';
+import { PROMPTS, TOTAL_TURNS as DEFAULT_TOTAL_TURNS } from './prompts.js';
 import { slugify, randomId, countWords, clampWords, formatDateDistance } from './utils.js';
 
 const STORAGE_KEYS = {
@@ -41,6 +41,13 @@ class SigarettaApp extends LitElement {
     revealState: { state: true },
     connectionPeers: { state: true },
   };
+
+  get totalTurns() {
+    if (Array.isArray(this.prompts) && this.prompts.length > 0) {
+      return this.prompts.length;
+    }
+    return DEFAULT_TOTAL_TURNS;
+  }
 
   static styles = css`
     :host {
@@ -686,7 +693,7 @@ class SigarettaApp extends LitElement {
       }
     });
     if (completed >= expected) {
-      if (currentTurn + 1 >= TOTAL_TURNS) {
+      if (currentTurn + 1 >= this.totalTurns) {
         this.finaliseAssignments();
       } else {
         gunService.clearCollection(this.roomId, 'turnStatus');
@@ -713,7 +720,7 @@ class SigarettaApp extends LitElement {
     gunService.setAssignments(this.roomId, assignments);
     gunService.updateRoom(this.roomId, {
       status: 'reveal',
-      currentTurn: TOTAL_TURNS - 1,
+      currentTurn: Math.max(this.totalTurns - 1, 0),
       finishedAt: Date.now(),
     });
   }
@@ -974,7 +981,9 @@ class SigarettaApp extends LitElement {
       case 'lobby':
         return 'In attesa di iniziare';
       case 'playing':
-        return `Turno ${Math.min((this.roomData?.currentTurn ?? 0) + 1, TOTAL_TURNS)} di ${TOTAL_TURNS}`;
+        const totalTurns = Math.max(this.totalTurns, 1);
+        const currentTurn = Math.min((this.roomData?.currentTurn ?? 0) + 1, totalTurns);
+        return `Turno ${currentTurn} di ${totalTurns}`;
       case 'reveal':
         return 'Rivelazione finale';
       default:
@@ -1085,11 +1094,13 @@ class SigarettaApp extends LitElement {
     const existingAnswer = this.answers.get(key)?.text;
     const maxWords = this.roomData.maxWords;
     const words = countWords(this.responseText || '');
+    const totalTurns = Math.max(this.totalTurns, 1);
+    const displayTurn = Math.min(currentTurn + 1, totalTurns);
 
     return html`
       <div class="grid" style="gap: 2rem;">
         <div class="card">
-          <div class="tag">Turno ${currentTurn + 1} di ${TOTAL_TURNS}</div>
+          <div class="tag">Turno ${displayTurn} di ${totalTurns}</div>
           <h2>${prompt}</h2>
           <p class="muted">
             Stai completando il foglio numero ${sheetIndex + 1}. Parole massime consentite: ${maxWords}.
@@ -1145,7 +1156,7 @@ class SigarettaApp extends LitElement {
     const players = this.players;
     const assignment = this.assignments.get(this.playerId);
     const sheetIndex = assignment?.sheetIndex ?? 0;
-    const lines = Array.from({ length: TOTAL_TURNS }, (_, turn) => {
+    const lines = Array.from({ length: this.totalTurns }, (_, turn) => {
       const key = `${turn}_${sheetIndex}`;
       const answer = this.answers.get(key);
       return answer?.text || '—';
