@@ -1,0 +1,15 @@
+{
+  "name": "sigaretta",
+  "version": "1.1.0",
+  "description": "Gioco della sigaretta con backend Express e Gun pronto per Render",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "NODE_ENV=development node server.js",
+    "test": "echo \"Test manuali: esegui sessioni multi-utente per validare il gioco.\""
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "gun": "^0.2020.1237"
+  }
+}

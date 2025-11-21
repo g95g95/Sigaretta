@@ -1,14 +1,16 @@
 import { PROMPTS } from './prompts.js';
 import { slugify } from './utils.js';
 
+const ORIGIN_PEER = `${window.location.origin}/gun`;
 const GUN_PEERS = [
+  ORIGIN_PEER,
   'https://relay.peer.ooo/gun',
   'https://gun-manhattan-1.herokuapp.com/gun',
   'https://gunjs.herokuapp.com/gun',
   'https://gun-manhattan.herokuapp.com/gun',
   'https://gun-eu.herokuapp.com/gun',
   'https://gun-asia.herokuapp.com/gun',
-];
+].filter(Boolean);
 
 function safeParse(json) {
   if (!json) return undefined;
