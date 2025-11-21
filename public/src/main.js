@@ -40,6 +40,9 @@ class SigarettaApp extends LitElement {
     waitingTurn: { state: true },
     revealState: { state: true },
     connectionPeers: { state: true },
+    storyImageUrl: { state: true },
+    storyImageError: { state: true },
+    storyImageLoading: { state: true },
   };
 
   get totalTurns() {
@@ -147,13 +150,19 @@ class SigarettaApp extends LitElement {
       border-radius: 16px;
       border: 1px solid rgba(22, 21, 36, 0.12);
       font: inherit;
-      background: var(--surface-strong);
+      background: #ffffff;
+      color: #0f0f12;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
     }
 
     textarea {
       resize: vertical;
       min-height: 140px;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: rgba(15, 15, 18, 0.45);
     }
 
     .checkbox {
@@ -267,6 +276,16 @@ class SigarettaApp extends LitElement {
       transition: background 0.2s ease, transform 0.2s ease;
     }
 
+    .story-label {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.78);
+      margin-bottom: 0.35rem;
+    }
+
+    .story-dot {
+      letter-spacing: 0.08em;
+    }
+
     .story-line.revealed {
       background: rgba(255, 255, 255, 0.16);
       transform: translateY(-1px);
@@ -284,6 +303,19 @@ class SigarettaApp extends LitElement {
       letter-spacing: 0.02em;
       text-transform: uppercase;
       color: rgba(18, 17, 34, 0.65);
+    }
+
+    .generated-image {
+      margin-top: 1rem;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .generated-image img {
+      display: block;
+      width: 100%;
+      height: auto;
     }
 
     .error {
@@ -335,6 +367,9 @@ class SigarettaApp extends LitElement {
     this.waitingTurn = false;
     this.revealState = [];
     this.connectionPeers = [];
+    this.storyImageUrl = '';
+    this.storyImageError = '';
+    this.storyImageLoading = false;
     this.unsubscribeRoom = null;
     this.handlePopState = this.handlePopState.bind(this);
     window.addEventListener('popstate', this.handlePopState);
@@ -389,10 +424,16 @@ class SigarettaApp extends LitElement {
       this.revealState = [];
       this.responseText = '';
       this.waitingTurn = false;
+      this.storyImageUrl = '';
+      this.storyImageError = '';
+      this.storyImageLoading = false;
     }
     if (changed.has('roomData') && this.roomData?.status === 'reveal') {
       this.revealState = [];
       this.waitingTurn = false;
+      this.storyImageUrl = '';
+      this.storyImageError = '';
+      this.storyImageLoading = false;
     }
   }
 
@@ -663,14 +704,21 @@ class SigarettaApp extends LitElement {
       sheetIndex,
       timestamp: Date.now(),
     };
-    gunService.writeAnswer(this.roomId, key, payload);
-    gunService.setTurnStatus(this.roomId, `${currentTurn}_${this.playerId}`, {
+    const statusEntry = {
       state: 'done',
       timestamp: Date.now(),
-    });
+    };
+    gunService.writeAnswer(this.roomId, key, payload);
+    const updatedStatus = new Map(this.turnStatus);
+    updatedStatus.set(`${currentTurn}_${this.playerId}`, statusEntry);
+    this.turnStatus = updatedStatus;
+    gunService.setTurnStatus(this.roomId, `${currentTurn}_${this.playerId}`, statusEntry);
     this.responseText = '';
     this.waitingTurn = true;
     this.joinError = '';
+    if (this.isHost) {
+      this.evaluateTurnProgress(updatedStatus);
+    }
   }
 
   computeSheetIndex(playerIndex, turn, totalPlayers) {
@@ -678,7 +726,7 @@ class SigarettaApp extends LitElement {
     return ((playerIndex - turn) % totalPlayers + totalPlayers) % totalPlayers;
   }
 
-  evaluateTurnProgress() {
+  evaluateTurnProgress(statusSnapshot = this.turnStatus) {
     if (!this.roomData || this.roomData.status !== 'playing') return;
     if (!this.isHost) return;
     const players = this.players || [];
@@ -687,7 +735,7 @@ class SigarettaApp extends LitElement {
     const expected = players.length;
     let completed = 0;
     players.forEach((player) => {
-      const entry = this.turnStatus.get(`${currentTurn}_${player.id}`);
+      const entry = statusSnapshot.get(`${currentTurn}_${player.id}`);
       if (entry?.state === 'done') {
         completed += 1;
       }
@@ -728,6 +776,49 @@ class SigarettaApp extends LitElement {
   revealLine(index) {
     if (!this.revealState.includes(index)) {
       this.revealState = [...this.revealState, index];
+    }
+  }
+
+  buildStoryLines(sheetIndex) {
+    return Array.from({ length: this.totalTurns }, (_, turn) => {
+      const prompt = this.prompts[turn] || `Domanda ${turn + 1}`;
+      const key = `${turn}_${sheetIndex}`;
+      const answer = this.answers.get(key);
+      return {
+        prompt,
+        text: answer?.text || '—',
+      };
+    });
+  }
+
+  async generateStoryImage(prompt) {
+    const trimmedPrompt = (prompt || '').trim();
+    if (!trimmedPrompt) {
+      this.storyImageError = 'Scrivi almeno una risposta prima di generare un’illustrazione.';
+      return;
+    }
+    this.storyImageLoading = true;
+    this.storyImageError = '';
+    this.storyImageUrl = '';
+    try {
+      const response = await fetch('/api/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: trimmedPrompt }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Impossibile generare l’immagine. Verifica la chiave API sul server.');
+      }
+      const data = await response.json();
+      if (!data.url) {
+        throw new Error('Risposta inattesa dal servizio di generazione.');
+      }
+      this.storyImageUrl = data.url;
+    } catch (error) {
+      this.storyImageError = error.message || 'Errore sconosciuto durante la generazione.';
+    } finally {
+      this.storyImageLoading = false;
     }
   }
 
@@ -1134,6 +1225,7 @@ class SigarettaApp extends LitElement {
     const words = countWords(this.responseText || '');
     const totalTurns = Math.max(this.totalTurns, 1);
     const displayTurn = Math.min(currentTurn + 1, totalTurns);
+    const isWaiting = this.waitingTurn || !!existingAnswer;
 
     return html`
       <div class="grid" style="gap: 2rem;">
@@ -1159,8 +1251,13 @@ class SigarettaApp extends LitElement {
                   <div class="muted">${words}/${maxWords} parole</div>
                   ${this.joinError ? html`<span class="error">${this.joinError}</span>` : nothing}
                   <div class="actions">
-                    <button type="submit">Conferma e passa il foglio</button>
+                    <button type="submit" ?disabled=${isWaiting}>
+                      ${isWaiting ? 'In attesa…' : 'Conferma e passa il foglio'}
+                    </button>
                   </div>
+                  ${isWaiting
+                    ? html`<p class="muted">Risposta salvata. Attendi che tuttə passino il foglio.</p>`
+                    : nothing}
                 </form>
               `}
         </div>
@@ -1194,11 +1291,12 @@ class SigarettaApp extends LitElement {
     const players = this.players;
     const assignment = this.assignments.get(this.playerId);
     const sheetIndex = assignment?.sheetIndex ?? 0;
-    const lines = Array.from({ length: this.totalTurns }, (_, turn) => {
-      const key = `${turn}_${sheetIndex}`;
-      const answer = this.answers.get(key);
-      return answer?.text || '—';
-    });
+    const lines = this.buildStoryLines(sheetIndex);
+    const storyPrompt = lines
+      .filter((line) => line.text && line.text !== '—')
+      .map((line) => `${line.prompt}: ${line.text}`)
+      .join('. ');
+
     return html`
       <div class="grid" style="gap: 2rem;">
         <div class="card">
@@ -1215,11 +1313,26 @@ class SigarettaApp extends LitElement {
                   class="story-line ${revealed ? 'revealed' : ''}"
                   @click=${() => this.revealLine(index)}
                 >
-                  ${revealed ? html`<span>${line}</span>` : html`<span>●●●●●</span>`}
+                  <div class="story-label">${line.prompt}</div>
+                  ${revealed
+                    ? html`<span>${line.text}</span>`
+                    : html`<span class="story-dot">●●●●●</span>`}
                 </div>
               `;
             })}
           </div>
+          <div class="actions" style="margin-top: 1.5rem;">
+            <button
+              @click=${() => this.generateStoryImage(storyPrompt || lines.map((l) => l.prompt).join('. '))}
+              ?disabled=${this.storyImageLoading}
+            >
+              ${this.storyImageLoading ? 'Generazione in corso…' : 'Genera immagine con OpenAI'}
+            </button>
+          </div>
+          ${this.storyImageError ? html`<p class="error">${this.storyImageError}</p>` : nothing}
+          ${this.storyImageUrl
+            ? html`<div class="generated-image"><img src="${this.storyImageUrl}" alt="Illustrazione generata" /></div>`
+            : nothing}
         </div>
         <div class="card">
           <div class="section-title">Ordine dei giocatori</div>
