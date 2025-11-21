@@ -1,8 +1,8 @@
 # Sigaretta – Il gioco della Sigaretta online
 
-Questo progetto offre una versione web cooperativa del gioco della sigaretta. L’esperienza è
-pensata per essere distribuita su GitHub Pages (o qualunque hosting statico) e utilizza il network
-peer-to-peer di [Gun.js](https://gun.eco) per sincronizzare in tempo reale le risposte fra i giocatori.
+Questo progetto offre una versione web cooperativa del gioco della sigaretta. Ora è pronto come
+web service da deployare su Render (o qualsiasi hosting Node) con un backend Express che integra
+Gun come relay realtime, così da mantenere vive le stanze per tutta la sessione.
 
 ## Funzionalità principali
 
@@ -18,32 +18,35 @@ peer-to-peer di [Gun.js](https://gun.eco) per sincronizzare in tempo reale le ri
 - Monitoraggio delle connessioni ai relay Gun con messaggi di stato più chiari in caso di problemi
   di rete.
 
-## Avvio in locale
+## Avvio in locale (server dinamico)
 
-1. Clona il repository e apri `index.html` con un qualsiasi server statico (ad esempio usando
-   l’estensione “Live Server” di VS Code oppure `python -m http.server`).
-2. Condividi l’URL generato dal server con le persone con cui vuoi giocare.
+1. Installa le dipendenze (`npm install`).
+2. Avvia il server con `npm start`. Verrà esposto su `http://localhost:3000`.
+3. Il relay Gun risponderà su `/gun` e l’endpoint di salute su `/health`.
 
-> **Nota:** la sincronizzazione si appoggia ai relay pubblici di Gun.js. In produzione puoi
-> configurare peer personalizzati modificando l’array `GUN_PEERS` in `src/gun-service.js`.
+> **Nota:** la sincronizzazione usa prima il relay locale (`/gun`) e poi i peer pubblici di Gun.
+> Puoi personalizzare l’array `GUN_PEERS` in `public/src/gun-service.js`.
 
-## Pubblicazione su GitHub Pages
+## Deploy su Render
 
-1. Esegui il push di questi file su un repository GitHub.
-2. Abilita GitHub Pages dalle impostazioni del repository scegliendo il branch desiderato (di
-   default `main`) e la directory radice.
-3. L’applicazione sarà immediatamente raggiungibile dal dominio GitHub Pages assegnato.
+1. Crea un nuovo servizio “Web Service” puntando a questo repository.
+2. Imposta il comando di start su `npm start` e la porta su `3000` (Render la mappa
+   automaticamente con `$PORT`).
+3. Il servizio risponderà su `/` con l’app e su `/health` per i check di disponibilità.
 
 ## Struttura del progetto
 
 ```
-├── index.html          # entry point dell’applicazione (inclusi font e script)
-├── styles.css          # stile globale a tema soft-gradient
-└── src
-    ├── main.js         # web component principale basato su Lit
-    ├── gun-service.js  # integrazione con Gun.js (creazione stanze, turni, sincronizzazione)
-    ├── prompts.js      # domande dei turni
-    └── utils.js        # funzioni di supporto (slugify, conteggio parole, ecc.)
+├── public
+│   ├── index.html          # entry point dell’applicazione (inclusi font e script)
+│   ├── styles.css          # stile globale a tema soft-gradient e hero
+│   └── src
+│       ├── main.js         # web component principale basato su Lit
+│       ├── gun-service.js  # integrazione con Gun.js (creazione stanze, turni, sincronizzazione)
+│       ├── prompts.js      # domande dei turni
+│       └── utils.js        # funzioni di supporto (slugify, conteggio parole, ecc.)
+├── server.js               # backend Express + Gun relay pronto per Render
+└── package.json            # script di avvio e dipendenze
 ```
 
 ## Tecnologie utilizzate
@@ -55,8 +58,16 @@ peer-to-peer di [Gun.js](https://gun.eco) per sincronizzare in tempo reale le ri
 
 ## Personalizzazioni suggerite
 
-- Aggiorna l’array `PROMPTS` in `src/prompts.js` per variare le domande del gioco.
-- Modifica le palette colore in `styles.css` per adattare il tema al tuo gruppo.
+- Aggiorna l’array `PROMPTS` in `public/src/prompts.js` per variare le domande del gioco.
+- Modifica le palette colore in `public/styles.css` per adattare il tema al tuo gruppo.
 - Imposta relay Gun privati per sessioni completamente dedicate al tuo collettivo.
+
+## Percorso di test suggerito
+
+1. Un host crea la stanza, attiva l’opzione “Solo io posso avviare la partita” e condivide il link.
+2. Due giocatori aprono il link, inseriscono il nome e completano i turni fino a quando l’host
+   avvia la partita.
+3. Si procede turno dopo turno: ognunə compila il foglio assegnato e attende lo stato “Prontə”.
+4. A fine partita ogni giocatore riceve la propria “sigaretta” da svelare cliccando su ogni riga.
 
 Divertiti a creare storie surreali con i tuoi amici e colleghə!
