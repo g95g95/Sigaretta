@@ -749,26 +749,64 @@ class SigarettaApp extends LitElement {
   renderLanding() {
     return html`
       <div class="container">
-        <div class="card">
-          <span class="tag">Il gioco della Sigaretta</span>
-          <h1>Benvenutə nel teatro surreale più veloce del web.</h1>
-          <p>
-            Questo portale digitale reimmagina il gioco della sigaretta: prepara il tuo gruppo,
-            passa i fogli virtuali, scrivi otto risposte nonsense e scopri le storie generate
-            collettivamente. Tutto accade in tempo reale, anche a distanza.
-          </p>
-          <h2>Regolamento</h2>
-          <ol>
-            <li>Si può giocare in 2–8 persone.</li>
-            <li>Ogni turno tutti rispondono alla domanda proposta.</li>
-            <li>Dopo aver scritto, il foglio viene passato alla persona alla propria destra.</li>
-            <li>Dopo otto giri il foglio passa tre volte in senso antiorario e poi si legge ad alta voce.</li>
-          </ol>
-          <div class="actions">
-            <button @click=${() => this.navigate('group-selection')}>Continua al gioco</button>
-            <button class="secondary" @click=${() => this.navigate('configure')}>
-              Configura una partita
-            </button>
+        <div class="hero-grid">
+          <div class="card">
+            <span class="tag">Il gioco della Sigaretta · Web service pronto per Render</span>
+            <h1 class="hero-title">
+              Storie surrealiste <span class="accent-text">in tempo reale</span>, con hosting dinamico e
+              lobby guidata.
+            </h1>
+            <p>
+              Questa release non è più solo un sito statico: un server Express con relay Gun integrato
+              mantiene le stanze vive, offre un endpoint <code>/health</code> per Render e garantisce che il
+              link generato dall’host resti funzionante per tutta la sessione.
+            </p>
+            <div class="chips">
+              <span class="chip">Relay Gun incluso</span>
+              <span class="chip">Routing single-page</span>
+              <span class="chip">Controllo host preservato</span>
+            </div>
+            <div class="feature-list">
+              <div class="feature-item">
+                <strong>1. Homepage guidata.</strong>
+                Ogni modifica è riassunta qui: web service, controlli host e flusso in tre tap.
+              </div>
+              <div class="feature-item">
+                <strong>2. Backend dedicato.</strong>
+                Un server Node/Express serve i file, tiene vivo Gun su <code>/gun</code> e risponde al
+                healthcheck di Render.
+              </div>
+              <div class="feature-item">
+                <strong>3. Flusso di gioco testato.</strong>
+                Dal link host alla rivelazione finale: i passaggi richiesti sono descritti e pronti da
+                seguire.
+              </div>
+            </div>
+            <div class="actions">
+              <button @click=${() => this.navigate('group-selection')}>Continua al gioco</button>
+              <button class="secondary" @click=${() => this.navigate('configure')}>
+                Configura una partita
+              </button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="tag">Percorso consigliato</div>
+            <h2>Come si gioca ora</h2>
+            <div class="steps">
+              <div class="step">
+                <h3>Host → crea link stanza</h3>
+                <p>Imposta nome gruppo, parole massime e blocco “solo host avvia”. Condividi il link.</p>
+              </div>
+              <div class="step">
+                <h3>Due giocatori → scrivono</h3>
+                <p>Entrano con il link, completano i turni. Il sistema passa i fogli virtuali a ogni giro.</p>
+              </div>
+              <div class="step">
+                <h3>Rivelazione finale</h3>
+                <p>Ogni persona riceve la propria “sigaretta”. Clicca le righe per svelare i punti uno a uno.</p>
+              </div>
+            </div>
+            <div class="pill-note">Suggerito per test: host + 2 player fino alla rivelazione.</div>
           </div>
         </div>
       </div>
