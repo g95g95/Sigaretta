@@ -529,6 +529,9 @@ class SigarettaApp extends LitElement {
         const currentKey = `${this.roomData?.currentTurn ?? 0}_${this.playerId}`;
         const entry = statusMap.get(currentKey);
         this.waitingTurn = entry?.state === 'done' && (this.roomData?.status === 'playing');
+        if (this.isHost && this.roomData?.status === 'playing') {
+          this.evaluateTurnProgress(statusMap);
+        }
       },
       onAssignments: (assignments) => {
         this.assignments = assignments;
@@ -757,8 +760,9 @@ class SigarettaApp extends LitElement {
     const players = this.players || [];
     if (!players.length) return;
     const assignments = new Map();
+    const finalTurn = this.roomData?.currentTurn ?? Math.max(this.totalTurns - 1, 0);
     players.forEach((player, index) => {
-      const sheetIndex = (index + 1) % players.length;
+      const sheetIndex = this.computeSheetIndex(index, finalTurn, players.length);
       assignments.set(player.id, {
         sheetIndex,
         assignedAt: Date.now(),
