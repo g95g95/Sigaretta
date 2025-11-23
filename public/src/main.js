@@ -685,6 +685,7 @@ class SigarettaApp extends LitElement {
 
   submitAnswer(event) {
     event.preventDefault();
+    event.stopPropagation();
     if (!this.roomData || !this.roomId) return;
     const currentTurn = this.roomData.currentTurn ?? 0;
     const players = this.players;
@@ -711,6 +712,9 @@ class SigarettaApp extends LitElement {
       state: 'done',
       timestamp: Date.now(),
     };
+    const updatedAnswers = new Map(this.answers);
+    updatedAnswers.set(key, payload);
+    this.answers = updatedAnswers;
     gunService.writeAnswer(this.roomId, key, payload);
     const updatedStatus = new Map(this.turnStatus);
     updatedStatus.set(`${currentTurn}_${this.playerId}`, statusEntry);
@@ -721,6 +725,16 @@ class SigarettaApp extends LitElement {
     this.joinError = '';
     if (this.isHost) {
       this.evaluateTurnProgress(updatedStatus);
+    }
+  }
+
+  async closeRoomForever() {
+    if (!this.roomId || !this.isHost) return;
+    try {
+      await gunService.deleteRoom(this.roomId);
+      this.leaveRoom();
+    } catch (error) {
+      this.roomError = error.message || 'Impossibile chiudere la stanza in modo definitivo.';
     }
   }
 
@@ -1356,6 +1370,15 @@ class SigarettaApp extends LitElement {
             ? html`
                 <div class="actions" style="margin-top: 1.5rem;">
                   <button @click=${() => this.startGame()}>Nuova partita con lo stesso gruppo</button>
+                </div>
+              `
+            : nothing}
+          ${this.isHost
+            ? html`
+                <div class="actions" style="margin-top: 0.5rem;">
+                  <button class="secondary" @click=${() => this.closeRoomForever()}>
+                    Chiudi stanza
+                  </button>
                 </div>
               `
             : nothing}

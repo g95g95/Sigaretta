@@ -268,6 +268,27 @@ class GunRoomService {
         node.get(itemKey).put(null);
       });
   }
+
+  deleteRoom(roomId) {
+    return new Promise((resolve, reject) => {
+      const roomNode = this.roomsNode.get(roomId);
+      try {
+        this.clearCollection(roomId, 'players');
+        this.clearCollection(roomId, 'answers');
+        this.clearCollection(roomId, 'turnStatus');
+        this.clearCollection(roomId, 'finalAssignments');
+        roomNode.put(null, (ack) => {
+          if (ack?.err) {
+            reject(new Error(ack.err));
+            return;
+          }
+          this.indexNode.get(roomId).put(null, () => resolve());
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
 }
 
 export const gunService = new GunRoomService();
