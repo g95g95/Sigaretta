@@ -661,17 +661,34 @@ class SigarettaApp extends LitElement {
 
   startGame() {
     if (!this.roomId) return;
-    if (!this.canCurrentPlayerStart()) return;
-    const currentPlayers = this.players || [];
-    if (currentPlayers.length === 0) return;
-    const playerOrder = currentPlayers.map((p) => p.id);
+    if (this.roomData?.status !== 'lobby') return;
+    if (!this.canCurrentPlayerStart()) {
+      this.joinError = this.roomData?.onlyHostStarts
+        ? 'Solo chi ha creato la stanza può avviare la partita.'
+        : 'Devi essere nella stanza per avviare la partita.';
+      return;
+    }
+    const validPlayers = (this.players || []).filter((player) => player?.id);
+    const playerOrder = Array.from(new Set(validPlayers.map((p) => p.id)));
+    if (playerOrder.length < 2) {
+      this.joinError = 'Servono almeno due persone in stanza per iniziare.';
+      return;
+    }
+    const startedAt = Date.now();
+    this.roomData = {
+      ...this.roomData,
+      status: 'playing',
+      currentTurn: 0,
+      startedAt,
+      playerOrder,
+    };
     gunService.clearCollection(this.roomId, 'answers');
     gunService.clearCollection(this.roomId, 'turnStatus');
     gunService.clearCollection(this.roomId, 'finalAssignments');
     gunService.updateRoom(this.roomId, {
       status: 'playing',
       currentTurn: 0,
-      startedAt: Date.now(),
+      startedAt,
       playerOrder,
     });
     this.responseText = '';
@@ -1204,6 +1221,10 @@ class SigarettaApp extends LitElement {
 
   renderLobby() {
     const canStart = this.canCurrentPlayerStart();
+    const readyPlayerIds = Array.from(
+      new Set((this.players || []).filter((p) => p?.id).map((p) => p.id))
+    );
+    const hasEnoughPlayers = readyPlayerIds.length >= 2;
     const hostInRoom = this.players.some((p) => p.id === this.roomData?.hostId);
     const waitingMessage = this.roomData.onlyHostStarts
       ? hostInRoom
@@ -1241,13 +1262,13 @@ class SigarettaApp extends LitElement {
           ? html`
               <div class="actions">
                 <button
-                  ?disabled=${this.players.length < 2}
+                  ?disabled=${!hasEnoughPlayers}
                   @click=${() => this.startGame()}
                 >
                   Avvia la partita
                 </button>
               </div>
-              ${this.players.length < 2
+              ${!hasEnoughPlayers
                 ? html`<p class="muted">Servono almeno due giocatori per iniziare.</p>`
                 : html`<p class="muted">Puoi iniziare quando il gruppo è prontə.</p>`}
             `
