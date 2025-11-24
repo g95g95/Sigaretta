@@ -12,6 +12,8 @@ const GUN_PEERS = [
   'https://gun-asia.herokuapp.com/gun',
 ].filter(Boolean);
 
+const INACTIVITY_LIMIT_MS = 6 * 60 * 60 * 1000;
+
 function safeParse(json) {
   if (!json) return undefined;
   try {
@@ -55,6 +57,10 @@ class GunRoomService {
         this.connectedPeers.delete(url);
         this.emitConnection();
       }
+    });
+
+    this.cleanInactiveRooms().catch((error) => {
+      console.error('Errore durante la pulizia iniziale delle stanze', error);
     });
   }
 
@@ -115,6 +121,7 @@ class GunRoomService {
           status: 'lobby',
           currentTurn: 0,
           createdAt: now,
+          lastActivity: now,
           prompts: JSON.stringify(PROMPTS),
           hostId: hostId || null,
           onlyHostStarts: typeof onlyHostStarts === 'boolean' ? onlyHostStarts : true,
@@ -126,7 +133,7 @@ class GunRoomService {
           }
           this.indexNode
             .get(slug)
-            .put({ id: roomId, groupName, createdAt: now })
+            .put({ id: roomId, groupName, createdAt: now, lastActivity: now })
             .once(() => resolve({ roomId }));
         });
       });
@@ -220,20 +227,26 @@ class GunRoomService {
       roomNode
         .get('players')
         .get(playerId)
-        .put(payload, () => resolve());
+        .put(payload, () => {
+          this.touchRoom(roomId);
+          resolve();
+        });
     });
   }
 
   updateRoom(roomId, patch) {
+    this.touchRoom(roomId);
     this.roomsNode.get(roomId).put(patch);
   }
 
   writeAnswer(roomId, key, value) {
+    this.touchRoom(roomId);
     const toStore = typeof value === 'string' ? value : JSON.stringify(value);
     this.roomsNode.get(roomId).get('answers').get(key).put(toStore);
   }
 
   setTurnStatus(roomId, key, value) {
+    this.touchRoom(roomId);
     this.roomsNode.get(roomId).get('turnStatus').get(key).put(value);
   }
 
@@ -250,6 +263,7 @@ class GunRoomService {
   }
 
   setAssignments(roomId, assignmentsMap) {
+    this.touchRoom(roomId);
     const node = this.roomsNode.get(roomId).get('finalAssignments');
     assignmentsMap.forEach((value, key) => {
       node.get(key).put(value);
@@ -257,6 +271,7 @@ class GunRoomService {
   }
 
   removePlayer(roomId, playerId) {
+    this.touchRoom(roomId);
     this.roomsNode.get(roomId).get('players').get(playerId).put(null);
   }
 
@@ -288,6 +303,42 @@ class GunRoomService {
         reject(error);
       }
     });
+  }
+
+  touchRoom(roomId) {
+    const now = Date.now();
+    this.roomsNode.get(roomId).get('lastActivity').put(now);
+    this.indexNode.get(roomId).get('lastActivity').put(now);
+  }
+
+  async cleanInactiveRooms(maxAgeMs = INACTIVITY_LIMIT_MS) {
+    const cutoff = Date.now() - maxAgeMs;
+    const staleRooms = new Set();
+
+    await new Promise((resolve) => {
+      this.indexNode
+        .map()
+        .once((data, key) => {
+          if (!data || !key) return;
+          const info = cleanNode(data);
+          const lastActivity = info.lastActivity || info.createdAt || 0;
+          if (lastActivity && lastActivity < cutoff) {
+            staleRooms.add(key);
+          }
+        });
+
+      setTimeout(resolve, 800);
+    });
+
+    if (!staleRooms.size) return;
+
+    await Promise.allSettled(
+      Array.from(staleRooms).map((roomId) =>
+        this.deleteRoom(roomId).catch((error) => {
+          console.error(`[cleanup] Impossibile eliminare la stanza ${roomId}`, error);
+        })
+      )
+    );
   }
 }
 
