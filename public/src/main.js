@@ -552,7 +552,8 @@ class SigarettaApp extends LitElement {
     }
     const onlyHostStarts =
       typeof rawData.onlyHostStarts === 'boolean' ? rawData.onlyHostStarts : true;
-    this.roomData = { ...rawData, prompts, onlyHostStarts };
+    const playerOrder = Array.isArray(rawData.playerOrder) ? rawData.playerOrder.filter(Boolean) : undefined;
+    this.roomData = { ...rawData, prompts, onlyHostStarts, playerOrder };
     this.prompts = prompts;
     this.isHost = rawData.hostId && rawData.hostId === this.playerId;
     this.roomError = '';
@@ -661,6 +662,9 @@ class SigarettaApp extends LitElement {
   startGame() {
     if (!this.roomId) return;
     if (!this.canCurrentPlayerStart()) return;
+    const currentPlayers = this.players || [];
+    if (currentPlayers.length === 0) return;
+    const playerOrder = currentPlayers.map((p) => p.id);
     gunService.clearCollection(this.roomId, 'answers');
     gunService.clearCollection(this.roomId, 'turnStatus');
     gunService.clearCollection(this.roomId, 'finalAssignments');
@@ -668,6 +672,7 @@ class SigarettaApp extends LitElement {
       status: 'playing',
       currentTurn: 0,
       startedAt: Date.now(),
+      playerOrder,
     });
     this.responseText = '';
     this.waitingTurn = false;
@@ -688,13 +693,13 @@ class SigarettaApp extends LitElement {
     event.stopPropagation();
     if (!this.roomData || !this.roomId) return;
     const currentTurn = this.roomData.currentTurn ?? 0;
-    const players = this.players;
-    const playerIndex = players.findIndex((p) => p.id === this.playerId);
+    const playerOrder = this.getPlayerOrder();
+    const playerIndex = playerOrder.indexOf(this.playerId);
     if (playerIndex < 0) {
-      this.joinError = 'Prima unisciti alla stanza.';
+      this.joinError = 'La partita è già in corso oppure non fai parte del gruppo iniziale.';
       return;
     }
-    const sheetIndex = this.computeSheetIndex(playerIndex, currentTurn, players.length);
+    const sheetIndex = this.computeSheetIndex(playerIndex, currentTurn, playerOrder.length);
     const key = `${currentTurn}_${sheetIndex}`;
     const text = (this.responseText || '').trim();
     if (!text) {
@@ -738,6 +743,27 @@ class SigarettaApp extends LitElement {
     }
   }
 
+  getPlayerOrder() {
+    const players = this.players || [];
+    const playerIds = players.map((p) => p.id);
+    const savedOrder = this.roomData?.playerOrder;
+    if (
+      Array.isArray(savedOrder) &&
+      savedOrder.length &&
+      savedOrder.every((id) => playerIds.includes(id))
+    ) {
+      return savedOrder.filter(Boolean);
+    }
+    return playerIds;
+  }
+
+  getPlayersInOrder() {
+    const byId = new Map((this.players || []).map((p) => [p.id, p]));
+    return this.getPlayerOrder()
+      .map((id) => byId.get(id))
+      .filter(Boolean);
+  }
+
   computeSheetIndex(playerIndex, turn, totalPlayers) {
     if (totalPlayers === 0) return 0;
     return ((playerIndex - turn) % totalPlayers + totalPlayers) % totalPlayers;
@@ -746,13 +772,13 @@ class SigarettaApp extends LitElement {
   evaluateTurnProgress(statusSnapshot = this.turnStatus) {
     if (!this.roomData || this.roomData.status !== 'playing') return;
     if (!this.isHost) return;
-    const players = this.players || [];
-    if (!players.length) return;
+    const playerOrder = this.getPlayerOrder();
+    if (!playerOrder.length) return;
     const currentTurn = this.roomData.currentTurn ?? 0;
-    const expected = players.length;
+    const expected = playerOrder.length;
     let completed = 0;
-    players.forEach((player) => {
-      const entry = statusSnapshot.get(`${currentTurn}_${player.id}`);
+    playerOrder.forEach((playerId) => {
+      const entry = statusSnapshot.get(`${currentTurn}_${playerId}`);
       if (entry?.state === 'done') {
         completed += 1;
       }
@@ -771,15 +797,17 @@ class SigarettaApp extends LitElement {
 
   finaliseAssignments() {
     if (!this.roomData) return;
-    const players = this.players || [];
-    if (!players.length) return;
+    const playerOrder = this.getPlayerOrder();
+    if (!playerOrder.length) return;
+    const playersById = new Map((this.players || []).map((p) => [p.id, p]));
     const assignments = new Map();
     const finalTurn = this.roomData?.currentTurn ?? Math.max(this.totalTurns - 1, 0);
-    players.forEach((player, index) => {
-      const sheetIndex = this.computeSheetIndex(index, finalTurn, players.length);
-      assignments.set(player.id, {
+    playerOrder.forEach((playerId, index) => {
+      const sheetIndex = this.computeSheetIndex(index, finalTurn, playerOrder.length);
+      assignments.set(playerId, {
         sheetIndex,
         assignedAt: Date.now(),
+        name: playersById.get(playerId)?.name,
       });
     });
     gunService.clearCollection(this.roomId, 'turnStatus');
@@ -1229,13 +1257,14 @@ class SigarettaApp extends LitElement {
   }
 
   renderGame() {
-    const players = this.players;
+    const players = this.getPlayersInOrder();
+    const playerOrder = this.getPlayerOrder();
     const currentTurn = this.roomData.currentTurn ?? 0;
-    const playerIndex = players.findIndex((p) => p.id === this.playerId);
+    const playerIndex = playerOrder.indexOf(this.playerId);
     if (playerIndex < 0) {
       return html`<div class="error">Problema con il tuo accesso. Riprova a entrare.</div>`;
     }
-    const sheetIndex = this.computeSheetIndex(playerIndex, currentTurn, players.length);
+    const sheetIndex = this.computeSheetIndex(playerIndex, currentTurn, playerOrder.length);
     const key = `${currentTurn}_${sheetIndex}`;
     const prompt = this.prompts[currentTurn] || 'Domanda';
     const existingAnswer = this.answers.get(key)?.text;
@@ -1289,7 +1318,9 @@ class SigarettaApp extends LitElement {
                 <div class="list-item">
                   <div>
                     <strong>${player.name || 'Anonimə'}</strong>
-                    <div class="muted">Foglio corrente: ${this.computeSheetIndex(index, currentTurn, players.length) + 1}</div>
+                    <div class="muted">Foglio corrente: ${
+                      this.computeSheetIndex(index, currentTurn, playerOrder.length) + 1
+                    }</div>
                   </div>
                   <span class="pill" style="background: ${done
                     ? 'rgba(13, 159, 109, 0.18)'
