@@ -662,7 +662,9 @@ class SigarettaApp extends LitElement {
   startGame() {
     if (!this.roomId) return;
     if (!this.canCurrentPlayerStart()) return;
-    const playerOrder = this.getPlayersInOrder().map((p) => p.id);
+    const currentPlayers = this.players || [];
+    if (currentPlayers.length === 0) return;
+    const playerOrder = currentPlayers.map((p) => p.id);
     gunService.clearCollection(this.roomId, 'answers');
     gunService.clearCollection(this.roomId, 'turnStatus');
     gunService.clearCollection(this.roomId, 'finalAssignments');
@@ -742,11 +744,17 @@ class SigarettaApp extends LitElement {
   }
 
   getPlayerOrder() {
+    const players = this.players || [];
+    const playerIds = players.map((p) => p.id);
     const savedOrder = this.roomData?.playerOrder;
-    if (Array.isArray(savedOrder) && savedOrder.length) {
+    if (
+      Array.isArray(savedOrder) &&
+      savedOrder.length &&
+      savedOrder.every((id) => playerIds.includes(id))
+    ) {
       return savedOrder.filter(Boolean);
     }
-    return (this.players || []).map((p) => p.id);
+    return playerIds;
   }
 
   getPlayersInOrder() {
