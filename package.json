@@ -1,15 +1,17 @@
 {
   "name": "sigaretta",
-  "version": "1.1.0",
-  "description": "Gioco della sigaretta con backend Express e Gun pronto per Render",
-  "main": "server.js",
+  "version": "1.0.0",
+  "description": "Sigaretta - Il gioco delle storie assurde",
+  "private": true,
   "scripts": {
-    "start": "node server.js",
-    "dev": "NODE_ENV=development node server.js",
-    "test": "echo \"Test manuali: esegui sessioni multi-utente per validare il gioco.\""
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && npm start"
   },
-  "dependencies": {
-    "express": "^4.18.2",
-    "gun": "^0.2020.1237"
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   }
 }
