@@ -231,15 +231,19 @@ async function handleReturnToLobby(io, socket, { roomCode }) {
 
 /**
  * Handle export request
+ * @param {string} format - 'txt' (default) or 'json'
  */
-async function handleExportRequest(io, socket, { roomCode, sheetId }) {
+async function handleExportRequest(io, socket, { roomCode, sheetId, format = 'txt' }) {
   try {
     const data = socketData.get(socket.id);
     if (!data) throw new Error('Non sei in una stanza');
     
-    const story = gameService.exportStory(data.roomCode, sheetId);
+    const result = gameService.exportStory(data.roomCode, sheetId, format);
     
-    socket.emit('export_ready', { story });
+    socket.emit('export_ready', { 
+      story: result.data, 
+      format: result.format 
+    });
   } catch (error) {
     emitError(socket, error.message);
   }

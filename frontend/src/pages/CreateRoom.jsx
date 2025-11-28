@@ -4,7 +4,7 @@
  * Form to create a new game room.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { createRoom } from '../services/api';
@@ -14,7 +14,7 @@ import { MIN_PLAYERS, MAX_PLAYERS, MIN_WORD_LIMIT, MAX_WORD_LIMIT, DEFAULT_WORD_
 
 export default function CreateRoom() {
   const navigate = useNavigate();
-  const { setPlayerInfo, setError, error, clearError } = useGameStore();
+  const { setPlayerInfo, setError, error, clearError, roomCode } = useGameStore();
   
   const [formData, setFormData] = useState({
     roomName: '',
@@ -24,6 +24,13 @@ export default function CreateRoom() {
     hostOnlyStart: true
   });
   const [isLoading, setIsLoading] = useState(false);
+
+  // Naviga quando roomCode viene settato (significa che room_joined è arrivato)
+  useEffect(() => {
+    if (roomCode) {
+      navigate(`/room/${roomCode}`);
+    }
+  }, [roomCode, navigate]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -52,14 +59,10 @@ export default function CreateRoom() {
       // Store player name
       setPlayerInfo(null, formData.playerName);
 
-      // Join room via WebSocket
+      // Join room via WebSocket - la navigazione avverrà quando room_joined arriva
       socketJoinRoom(data.roomCode, formData.playerName);
-
-      // Navigate to room
-      navigate(`/room/${data.roomCode}`);
     } catch (err) {
       setError(err.message);
-    } finally {
       setIsLoading(false);
     }
   };

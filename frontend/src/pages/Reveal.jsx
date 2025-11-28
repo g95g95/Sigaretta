@@ -24,6 +24,7 @@ export default function Reveal() {
   
   const [currentSheetIndex, setCurrentSheetIndex] = useState(0);
   const [revealedLines, setRevealedLines] = useState({});
+  const [showExportMenu, setShowExportMenu] = useState(false);
   
   const isHost = playerId === hostId;
   const currentSheet = revealSheets[currentSheetIndex];
@@ -68,9 +69,13 @@ export default function Reveal() {
     }
   };
 
-  const handleExport = () => {
-    if (currentSheet) {
-      requestExport(roomCode, currentSheet.id);
+  const handleExport = (e, format = 'txt') => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (currentSheet && roomCode) {
+      console.log('Exporting:', roomCode, currentSheet.id, format);
+      requestExport(roomCode, currentSheet.id, format);
+      setShowExportMenu(false);
     }
   };
 
@@ -191,17 +196,41 @@ export default function Reveal() {
 
         {/* Actions */}
         <div className="reveal-actions">
-          <button className="btn btn-secondary" onClick={handleExport}>
-            📄 Esporta Storia
-          </button>
+          <div className="export-wrapper">
+            <button 
+              type="button"
+              className="btn btn-secondary" 
+              onClick={() => setShowExportMenu(!showExportMenu)}
+            >
+              📄 Esporta Storia ▾
+            </button>
+            {showExportMenu && (
+              <div className="export-menu">
+                <button 
+                  type="button"
+                  className="export-option"
+                  onClick={(e) => handleExport(e, 'txt')}
+                >
+                  📝 Esporta come TXT
+                </button>
+                <button 
+                  type="button"
+                  className="export-option"
+                  onClick={(e) => handleExport(e, 'json')}
+                >
+                  📋 Esporta come JSON
+                </button>
+              </div>
+            )}
+          </div>
           
           {isHost && (
-            <button className="btn btn-primary" onClick={handleReturnToLobby}>
+            <button type="button" className="btn btn-primary" onClick={handleReturnToLobby}>
               🔄 Nuova Partita
             </button>
           )}
           
-          <button className="btn btn-ghost" onClick={handleLeave}>
+          <button type="button" className="btn btn-ghost" onClick={handleLeave}>
             Esci dalla stanza
           </button>
         </div>
@@ -352,6 +381,47 @@ export default function Reveal() {
 
         .reveal-actions .btn {
           min-width: 200px;
+        }
+
+        .export-wrapper {
+          position: relative;
+        }
+
+        .export-menu {
+          position: absolute;
+          top: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          margin-top: var(--space-xs);
+          background: var(--color-bg-card);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-md);
+          overflow: hidden;
+          box-shadow: var(--shadow-lg);
+          z-index: 10;
+          min-width: 200px;
+        }
+
+        .export-option {
+          display: block;
+          width: 100%;
+          padding: var(--space-md);
+          background: none;
+          border: none;
+          color: var(--color-text-primary);
+          font-family: var(--font-serif);
+          font-size: 0.95rem;
+          text-align: left;
+          cursor: pointer;
+          transition: background var(--transition-fast);
+        }
+
+        .export-option:hover {
+          background: var(--color-bg-secondary);
+        }
+
+        .export-option:not(:last-child) {
+          border-bottom: 1px solid var(--color-border);
         }
 
         @media (max-width: 640px) {

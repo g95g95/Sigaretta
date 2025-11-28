@@ -207,9 +207,12 @@ export function handleTimeout(code, playerId) {
 }
 
 /**
- * Export story as text
+ * Export story in specified format
+ * @param {string} code - Room code
+ * @param {string} sheetId - Sheet ID
+ * @param {string} format - 'txt' (default) or 'json'
  */
-export function exportStory(code, sheetId) {
+export function exportStory(code, sheetId, format = 'txt') {
   const room = roomService.getRoom(code);
   const sheet = room.sheets.find(s => s.id === sheetId);
   
@@ -222,6 +225,27 @@ export function exportStory(code, sheetId) {
     'Cosa dice lui?', 'Cosa dice lei?', 'Chi arriva?', 'Cosa dice chi arriva?'
   ];
 
+  // JSON format
+  if (format === 'json') {
+    const storyData = {
+      game: 'Sigaretta',
+      roomName: room.name,
+      sheetId: sheet.id,
+      exportedAt: new Date().toISOString(),
+      entries: sheet.entries.map((entry, index) => {
+        const author = room.players.get(entry.playerId);
+        return {
+          turn: index + 1,
+          prompt: prompts[index],
+          content: entry.content,
+          author: author ? author.name : 'Sconosciuto'
+        };
+      })
+    };
+    return { format: 'json', data: JSON.stringify(storyData, null, 2) };
+  }
+
+  // TXT format (default)
   let story = `🚬 SIGARETTA - Storia\n`;
   story += `Stanza: ${room.name}\n`;
   story += `${'─'.repeat(30)}\n\n`;
@@ -236,7 +260,7 @@ export function exportStory(code, sheetId) {
   story += `${'─'.repeat(30)}\n`;
   story += `Giocato il ${new Date().toLocaleDateString('it-IT')}\n`;
 
-  return story;
+  return { format: 'txt', data: story };
 }
 
 export default {

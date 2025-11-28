@@ -15,7 +15,7 @@ import { isValidRoomCode } from '../utils/helpers';
 export default function JoinRoom() {
   const navigate = useNavigate();
   const { code: urlCode } = useParams();
-  const { setPlayerInfo, setError, error, clearError, playerName: storedName } = useGameStore();
+  const { setPlayerInfo, setError, error, clearError, playerName: storedName, roomCode } = useGameStore();
   
   const [formData, setFormData] = useState({
     roomCode: urlCode || '',
@@ -31,6 +31,13 @@ export default function JoinRoom() {
       validateRoom(urlCode);
     }
   }, [urlCode]);
+
+  // Naviga quando roomCode viene settato (significa che room_joined è arrivato)
+  useEffect(() => {
+    if (roomCode) {
+      navigate(`/room/${roomCode}`);
+    }
+  }, [roomCode, navigate]);
 
   const validateRoom = async (code) => {
     setIsValidating(true);
@@ -92,14 +99,10 @@ export default function JoinRoom() {
       // Store player name
       setPlayerInfo(null, formData.playerName);
 
-      // Join room via WebSocket
+      // Join room via WebSocket - la navigazione avverrà quando room_joined arriva
       socketJoinRoom(formData.roomCode, formData.playerName);
-
-      // Navigate to room
-      navigate(`/room/${formData.roomCode}`);
     } catch (err) {
       setError(err.message);
-    } finally {
       setIsLoading(false);
     }
   };

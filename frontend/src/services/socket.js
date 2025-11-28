@@ -28,12 +28,7 @@ export function initSocket() {
   socket.on('connect', () => {
     console.log('🔌 Connected to server');
     useGameStore.getState().setConnected(true);
-    
-    // Try to reconnect to room if we have stored data
-    const { roomCode, playerId } = useGameStore.getState();
-    if (roomCode && playerId) {
-      socket.emit('reconnect_player', { roomCode, playerId });
-    }
+    // Non tentiamo riconnessione automatica - l'utente deve ri-entrare nella stanza
   });
 
   socket.on('disconnect', () => {
@@ -43,7 +38,7 @@ export function initSocket() {
 
   socket.on('connect_error', (error) => {
     console.error('Connection error:', error);
-    useGameStore.getState().setError('Impossibile connettersi al server');
+    // Non settiamo errore globale qui - il socket riproverà automaticamente
   });
 
   // Room events
@@ -129,9 +124,9 @@ export function initSocket() {
   });
 
   socket.on('export_ready', (data) => {
-    console.log('📄 Export ready');
-    // Handle export (download or copy)
-    downloadStory(data.story);
+    console.log('📄 Export ready:', data.format);
+    // Handle export (download)
+    downloadStory(data.story, data.format);
   });
 
   socket.on('room_closed', (data) => {
@@ -211,20 +206,29 @@ export function returnToLobby(roomCode) {
 
 /**
  * Request story export
+ * @param {string} roomCode 
+ * @param {string} sheetId 
+ * @param {string} format - 'txt' (default) or 'json'
  */
-export function requestExport(roomCode, sheetId) {
-  getSocket().emit('request_export', { roomCode, sheetId });
+export function requestExport(roomCode, sheetId, format = 'txt') {
+  getSocket().emit('request_export', { roomCode, sheetId, format });
 }
 
 /**
- * Download story as text file
+ * Download story as file
+ * @param {string} content - File content
+ * @param {string} format - 'txt' or 'json'
  */
-function downloadStory(story) {
-  const blob = new Blob([story], { type: 'text/plain;charset=utf-8' });
+function downloadStory(content, format = 'txt') {
+  const isJson = format === 'json';
+  const mimeType = isJson ? 'application/json;charset=utf-8' : 'text/plain;charset=utf-8';
+  const extension = isJson ? 'json' : 'txt';
+  
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `sigaretta-storia-${Date.now()}.txt`;
+  a.download = `sigaretta-storia-${Date.now()}.${extension}`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

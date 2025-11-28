@@ -10,12 +10,14 @@ import { useGameStore } from '../store/useGameStore';
 import { useEffect } from 'react';
 
 export default function Home() {
-  const { error, clearError, reset } = useGameStore();
+  const { error, clearError, leaveRoom } = useGameStore();
 
   // Clear any stale state on mount
   useEffect(() => {
     clearError();
-  }, [clearError]);
+    // Pulisci eventuali dati di stanza obsoleti
+    leaveRoom();
+  }, [clearError, leaveRoom]);
 
   return (
     <div className="page">
