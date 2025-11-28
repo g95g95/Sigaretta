@@ -15,32 +15,22 @@ services:
       - key: NODE_ENV
         value: production
       - key: CORS_ORIGIN
-        fromService:
-          name: sigaretta-frontend
-          type: web
-          property: url
+        sync: false
     healthCheckPath: /health
 
   # Frontend Static Site
   - type: web
     name: sigaretta-frontend
     env: static
-    region: frankfurt
     plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        fromService:
-          name: sigaretta-backend
-          type: web
-          property: url
+        sync: false
       - key: VITE_WS_URL
-        fromService:
-          name: sigaretta-backend
-          type: web
-          property: url
+        sync: false
     headers:
       - path: /*
         name: Cache-Control
@@ -49,4 +39,3 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
-
